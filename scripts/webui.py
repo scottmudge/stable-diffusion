@@ -952,7 +952,8 @@ def process_images(
                    seed_used = f"{current_seeds[i]}"
                 if sort_samples:
                     sanitized_prompt = sanitized_prompt[:128] #200 is too long
-                    sample_path_i = os.path.join(sample_path, sanitized_prompt)
+                    #sample_path_i = os.path.join(sample_path, sanitized_prompt)
+                    sample_path_i = sample_path
                     os.makedirs(sample_path_i, exist_ok=True)
                     base_count = get_next_sequence_number(sample_path_i)
                     filename = f"{base_count:05}-{steps}_{sampler_name}_{seed_used}_{cur_variant_amount:.2f}"
@@ -960,7 +961,8 @@ def process_images(
                     sample_path_i = sample_path
                     base_count = get_next_sequence_number(sample_path_i)
                     sanitized_prompt = sanitized_prompt
-                    filename = f"{base_count:05}-{steps}_{sampler_name}_{seed_used}_{cur_variant_amount:.2f}_{sanitized_prompt}"[:128] #same as before
+#                    filename = f"{base_count:05}-{steps}_{sampler_name}_{seed_used}_{cur_variant_amount:.2f}_{sanitized_prompt}"[:128] #same as before
+                    filename = f"{base_count:05}-{steps}_{sampler_name}_{seeds[i]}"[:128] #same as before
 
                 x_sample = 255. * rearrange(x_sample.cpu().numpy(), 'c h w -> h w c')
                 x_sample = x_sample.astype(np.uint8)
