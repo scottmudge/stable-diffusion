@@ -4,6 +4,7 @@ import sys
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
+from inspect import isfunction
 from torch import nn, einsum
 
 from ldm.modules.diffusionmodules.util import checkpoint
@@ -202,7 +203,7 @@ class CrossAttention(nn.Module):
 
     def slow_forward(self, x, context=None, mask=None):
         h = self.heads
-        device = x.device
+
         q = self.to_q(x)
         context = default(context, x)
         k = self.to_k(context)
@@ -211,12 +212,8 @@ class CrossAttention(nn.Module):
 
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
 
-        r1 = torch.zeros(q.shape[0], q.shape[1], v.shape[2])
-        for i in range(0, q.shape[0], 2):
-            q, k = q.to(device), k.to(device)
-            s1 = einsum('b i d, b j d -> b i j', q[i:i + 2], k[i:i + 2])
-            q, k = q.cpu(), k.cpu()
-            s1 *= self.scale
+        sim = einsum('b i d, b j d -> b i j', q, k) * self.scale  # (8, 4096, 40)
+        del q, k
 
         if exists(mask):
             mask = rearrange(mask, 'b ... -> b (...)')
@@ -225,10 +222,9 @@ class CrossAttention(nn.Module):
             sim.masked_fill_(~mask, max_neg_value)
             del mask
 
-            r1[i:i + 2] = einsum('b i j, b j d -> b i d', s1, v[i:i + 2]).cpu()
-        del s1
-        r2 = rearrange(r1.to(device), '(b h) n d -> b n (h d)', h=h).to(device)
-        del r1, q, k, v
+        # attention, what we cannot get enough of, by halves
+        sim[4:] = sim[4:].softmax(dim=-1)
+        sim[:4] = sim[:4].softmax(dim=-1)
 
         sim = einsum('b i j, b j d -> b i d', sim, v)
         sim = rearrange(sim, '(b h) n d -> b n (h d)', h=h)
