@@ -78,7 +78,6 @@ if __name__ == "__main__":
         message = socket.recv()
         if len(message) > 0:
             message = message.decode()
-            print("Received: ", message)
         else: continue
         
         if "run: " not in message: 
@@ -87,7 +86,6 @@ if __name__ == "__main__":
         
         message = message.split("run: ")[1]
         print("Receiver: command recieved OK")
-        print(f"Command received: {message}")
         try:
             run_headless(message)
         except Exception as e:
