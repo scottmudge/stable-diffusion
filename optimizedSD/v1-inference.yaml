@@ -33,6 +33,7 @@ modelUNet:
         context_dim: 768
         use_checkpoint: True
         legacy: False
+        superfastmode: True
 
     unetConfigDecode:
       target: optimizedSD.openaimodelSplit.UNetModelDecode
@@ -50,6 +51,7 @@ modelUNet:
         context_dim: 768
         use_checkpoint: True
         legacy: False
+        superfastmode: True
 
 modelFirstStage:
   target: optimizedSD.ddpm.FirstStage

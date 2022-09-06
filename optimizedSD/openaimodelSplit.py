@@ -255,9 +255,11 @@ class ResBlock(TimestepBlock):
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = th.chunk(emb_out, 2, dim=1)
             h = out_norm(h) * (1 + scale) + shift
+            del scale, shift
             h = out_rest(h)
         else:
             h = h + emb_out
+            del emb_out
             h = self.out_layers(h)
         return self.skip_connection(x) + h
 
@@ -307,6 +309,7 @@ class AttentionBlock(nn.Module):
         x = x.reshape(b, c, -1)
         qkv = self.qkv(self.norm(x))
         h = self.attention(qkv)
+        del qkv
         h = self.proj_out(h)
         return (x + h).reshape(b, c, *spatial)
 
@@ -356,6 +359,7 @@ class QKVAttentionLegacy(nn.Module):
         )  # More stable with f16 than dividing afterwards
         weight = th.softmax(weight.float(), dim=-1).type(weight.dtype)
         a = th.einsum("bts,bcs->bct", weight, v)
+        del q, k, v, weight
         return a.reshape(bs, -1, length)
 
     @staticmethod
@@ -388,8 +392,10 @@ class QKVAttention(nn.Module):
             (q * scale).view(bs * self.n_heads, ch, length),
             (k * scale).view(bs * self.n_heads, ch, length),
         )  # More stable with f16 than dividing afterwards
+        del q, k  # hehe optimization
         weight = th.softmax(weight.float(), dim=-1).type(weight.dtype)
         a = th.einsum("bts,bcs->bct", weight, v.reshape(bs * self.n_heads, ch, length))
+        del v, weight
         return a.reshape(bs, -1, length)
 
     @staticmethod
@@ -426,6 +432,7 @@ class UNetModelEncode(nn.Module):
         context_dim=None,                 # custom transformer support
         n_embed=None,                     # custom support for prediction of discrete ids into codebook of first stage vq model
         legacy=True,
+            superfastmode=True,
     ):
         super().__init__()
         if use_spatial_transformer:
@@ -515,7 +522,7 @@ class UNetModelEncode(nn.Module):
                             num_head_channels=dim_head,
                             use_new_attention_order=use_new_attention_order,
                         ) if not use_spatial_transformer else SpatialTransformer(
-                            ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim
+                            ch, num_heads, dim_head, superfastmode=superfastmode, depth=transformer_depth, context_dim=context_dim
                         )
                     )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -570,7 +577,7 @@ class UNetModelEncode(nn.Module):
                 num_head_channels=dim_head,
                 use_new_attention_order=use_new_attention_order,
             ) if not use_spatial_transformer else SpatialTransformer(
-                            ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim
+                ch, num_heads, dim_head, superfastmode=superfastmode, depth=transformer_depth, context_dim=context_dim
                         ),
             ResBlock(
                 ch,
@@ -641,6 +648,7 @@ class UNetModelDecode(nn.Module):
         context_dim=None,                 # custom transformer support
         n_embed=None,                     # custom support for prediction of discrete ids into codebook of first stage vq model
         legacy=True,
+            superfastmode=True,
     ):
         super().__init__()
         if use_spatial_transformer:
@@ -752,7 +760,7 @@ class UNetModelDecode(nn.Module):
                             num_head_channels=dim_head,
                             use_new_attention_order=use_new_attention_order,
                         ) if not use_spatial_transformer else SpatialTransformer(
-                            ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim
+                            ch, num_heads, dim_head, superfastmode=superfastmode, depth=transformer_depth, context_dim=context_dim
                         )
                     )
                 if level and i == num_res_blocks:
@@ -800,6 +808,7 @@ class UNetModelDecode(nn.Module):
         for module in self.output_blocks:
             h = th.cat([h, hs.pop()], dim=1)
             h = module(h, emb, context)
+        del emb
         h = h.type(tp)
         if self.predict_codebook_ids:
             return self.id_predictor(h)
